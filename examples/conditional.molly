@@ -1,0 +1,7 @@
+# Two branches: both are checked before either runs.
+let status = order_status();
+if status in {"shipped", "delivered"} then
+  send customer_whatsapp(draft(current_order()));
+else
+  send customer_whatsapp("Your order is still being prepared.");
+end

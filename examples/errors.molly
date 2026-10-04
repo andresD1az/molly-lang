@@ -1,0 +1,8 @@
+# Lexical and syntax errors: all of them are listed.
+let a = "unterminated;
+let 2b = "x";
+send public_web(a)
+if a ! "x" then
+  let c = a @ "y";
+end
+end

@@ -1,0 +1,3 @@
+let order = current_order();
+let message = draft(order);
+send customer_whatsapp(message);

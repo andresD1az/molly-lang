@@ -1,0 +1,18 @@
+# Set operations and propositional logic.
+set A = {1, 2, 3, 4};
+set B = {3, 4, 5};
+
+set both = A union B;                 # A ∪ B = {1, 2, 3, 4, 5}
+set common = A intersect B;           # A ∩ B = {3, 4}
+set only_a = A - B;                   # A − B = {1, 2}
+int size = |A union B|;               # |A ∪ B| = 5
+bool sub = common subset A;           # (A ∩ B) ⊆ A
+
+bool p = 3 in A;
+bool q = 5 in A;
+bool rule = p implies q;              # T → F = F
+bool same = p iff not q;              # T ↔ T = T
+
+send public_web("A ∪ B = " + both + ", |A ∪ B| = " + size);
+send public_web("A ∩ B = " + common + ", A − B = " + only_a + ", (A ∩ B) ⊆ A: " + sub);
+send public_web("p → q: " + rule + ", p ↔ ¬q: " + same);

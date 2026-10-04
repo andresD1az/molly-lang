@@ -1,0 +1,4 @@
+# Blocked: private order data cannot reach a public sink.
+let order = current_order();
+let message = draft(order);
+send public_web(message);

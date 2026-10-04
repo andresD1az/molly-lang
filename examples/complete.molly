@@ -1,0 +1,65 @@
+# ═══ Molly: a tour of the whole language ═══
+
+# 1. Constants (let): the type is inferred and they cannot be reassigned.
+let company = "Acme";
+let tax = 0.19;
+
+# 2. Typed variables: they can be reassigned with a value of the same type.
+int age = 20;
+float price = 19.99;
+bool active = true;
+char initial = 'A';
+str name = "Ana";
+list purchases = [3, 1, 2];
+set tags = {"vip", "new"};
+record customer = record {name: name, age: age};
+record nothing = null;
+
+# 3. Assignment.
+age = age + 1;
+
+# 4. Arithmetic and precedence (* before +).
+float total = price * purchases[0] * (1 + tax);
+int remainder = 17 % 5;
+
+# 5. Fields, indexes and cardinality.
+str who = customer.name;
+char first = name[0];
+int tag_count = |tags|;
+
+# 6. Sets and propositional logic.
+set A = {1, 2, 3, 4};
+set B = {3, 4, 5};
+set both = A union B;
+set common = A intersect B;
+bool included = common subset A;
+bool rule = active implies age >= 18;
+
+# 7. if / else.
+if age >= 18 and "vip" in tags then
+  send public_web(initial + ". " + who + ": adult VIP customer");
+else
+  send public_web("Regular customer");
+end
+
+# 8. while.
+int i = 1;
+int factorial = 1;
+while i <= 5 do
+  factorial = factorial * i;
+  i = i + 1;
+end
+
+# 9. for over a range and over a list.
+int sum = 0;
+for n in [1 .. 10] do
+  sum = sum + n;
+end
+for p in purchases do
+  send public_web("Purchase of " + p + " units");
+end
+
+# 10. Send the results.
+send public_web(company + " | total with tax: $" + total + " | 5! = " + factorial
+                + " | sum 1..10 = " + sum + " | A ∪ B = " + both
+                + " | rule: " + rule + " | tags: " + tag_count);

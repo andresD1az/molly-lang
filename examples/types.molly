@@ -1,0 +1,21 @@
+# Every Molly type. Literals are public, so they can be published.
+int age = 20;
+float price = 19.99;
+bool active = true;
+char initial = 'A';
+str name = "Ana";
+list purchases = [1, 2, 3];
+set tags = {"vip", "new", "vip"};
+record customer = record {name: name, age: age, purchases: purchases};
+record missing = null;
+
+# Precedence: * before +, and before or.
+float total = price * purchases[2] + 1;
+bool adult = customer.age >= 18 and not (missing != null or false);
+
+if "vip" in tags and active then
+  send public_web(initial + ". " + customer.name + " spent $" + total);
+else
+  send public_web("Regular customer");
+end
+send public_web(adult);
