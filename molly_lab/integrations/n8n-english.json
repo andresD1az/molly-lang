@@ -1,0 +1,58 @@
+{
+  "name": "Molly Security Lab — english",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "molly-trigger",
+      "name": "Ejecutar prueba"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8765/api/integration/run",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"variant\": \"english\", \"mode\": \"integration\", \"code\": \"let order = current_order();\\nlet message = draft(order);\\nsend customer_whatsapp(message);\"}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        0
+      ],
+      "id": "molly-run",
+      "name": "Molly — ejecutar con políticas",
+      "notesInFlow": true,
+      "notes": "Configura Header Auth: Authorization: Bearer <token local del laboratorio>. No devuelve datos privados."
+    }
+  ],
+  "connections": {
+    "Ejecutar prueba": {
+      "main": [
+        [
+          {
+            "node": "Molly — ejecutar con políticas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}
