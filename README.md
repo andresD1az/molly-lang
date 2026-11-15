@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/molly-lang-logo-dark.svg">
+    <img src="docs/brand/molly-lang-logo.svg" alt="Molly Lang" height="96">
+  </picture>
+</p>
+
 # Molly
 
 **Let AI agents write the plan. Keep control of where the data goes.**
