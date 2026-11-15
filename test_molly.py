@@ -486,5 +486,66 @@ class LoopTests(unittest.TestCase):
         self.assertEqual(result["counters"]["sends"], 0)
 
 
+class AuditTests(unittest.TestCase):
+    """Regression tests for the leaks found in the 0.7 security audit."""
+
+    def test_sends_are_atomic(self):
+        # An allowed send must not go out when a later statement fails.
+        result = execute('send public_web("first"); let x = 1 / 0; send public_web("second");')
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["counters"]["sends"], 0)
+        self.assertEqual(result["outbox"], [])
+
+    def test_sends_keep_their_order(self):
+        result = execute('send public_web("a"); send public_web("b");')
+        self.assertEqual(result["outbox"], ["a", "b"])
+
+    def test_error_on_restricted_data_withholds_details(self):
+        result = execute("let o = order_details(); let x = [0][o.total];")
+        self.assertEqual(result["errors"][0]["phase"], "Runtime")
+        self.assertNotIn("120000", result["error"])
+        self.assertIn("details withheld", result["error"])
+
+    def test_error_on_public_data_keeps_details(self):
+        result = execute("let x = [0][7];")
+        self.assertIn("Index 7 out of range", result["error"])
+
+    def test_trace_does_not_reveal_restricted_control_flow(self):
+        result = execute('let s = order_status(); int n = 0; '
+                         'if s == "shipped" then n = 1; else n = 2; end '
+                         'for c in s do n = n + 1; end')
+        text = " ".join(event["detail"] for event in result["trace"])
+        self.assertNotIn("then branch", text)
+        self.assertNotIn("iterations", text)
+        self.assertNotIn("s: str", text)
+        self.assertIn("restricted", text)
+
+    def test_while_condition_runs_under_the_label_of_earlier_laps(self):
+        # Re-evaluating the condition depends on the previous test, so an external
+        # processor called there must be allowed to learn about it.
+        engine, counters, _ = make_engine()
+        code = ('int i = 0; str s = order_status(); '
+                'while i < |s| and external_model("x") != "" do i = i + 1; end')
+        with self.assertRaises(MollyError) as caught:
+            engine.run(code, CONTEXT)
+        self.assertEqual(caught.exception.phase, "Policy")
+        self.assertLessEqual(counters["external_model"], 1)
+
+    def test_random_plans_do_not_interfere(self):
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).parent / "tools"))
+        from fuzz_noninterference import check
+        stats, leaks = check(plans=150, seed=11)
+        self.assertEqual(leaks, [])
+        self.assertGreater(stats["both finish"], 20)
+
+    def test_trace_still_describes_public_control_flow(self):
+        result = execute("int n = 0; if 1 < 2 then n = 1; end for i in [1 .. 3] do n = n + i; end")
+        text = " ".join(event["detail"] for event in result["trace"])
+        self.assertIn("then branch", text)
+        self.assertIn("3 iterations", text)
+
+
 if __name__ == "__main__":
     unittest.main()

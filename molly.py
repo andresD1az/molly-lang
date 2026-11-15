@@ -1239,6 +1239,11 @@ def assigned_names(blocks):
     return names
 
 
+def shown_type(value):
+    """Type for the trace; the type of restricted data is not disclosed."""
+    return type_of(value.data) if value.audience is None else "restricted value"
+
+
 class Engine:
     def __init__(self, sources, transforms, sinks):
         if set(sources) & set(transforms):
@@ -1246,9 +1251,12 @@ class Engine:
         self.sources, self.transforms, self.sinks = dict(sources), dict(transforms), dict(sinks)
         self.trace = []
 
-    def event(self, operation, detail):
-        # No raw source or generated text in the trace.
-        self.trace.append({"operation": operation, "detail": detail})
+    def event(self, operation, detail, pc=PUBLIC):
+        # No raw source or generated text in the trace. Steps that only run
+        # because of restricted data (pc not public) are not recorded either:
+        # the trace would reveal which branch ran or how many times a loop did.
+        if pc.audience is None:
+            self.trace.append({"operation": operation, "detail": detail})
 
     def validate(self, program):
         """Checks before running: names, scopes, arities, sinks and fields."""
@@ -1368,6 +1376,21 @@ class Engine:
             self.event("ANALYSIS", "Tokens, syntax and tools checked")
 
             iterations = 0
+            outbox = []  # sends are delivered only if the whole plan succeeds
+
+            def shield(values, token, operation):
+                """Runs `operation`; if it fails on restricted data, withholds the details.
+
+                Messages such as "Index 4271 out of range" would hand the value
+                to whoever reads the error (the agent that wrote the plan).
+                """
+                try:
+                    return operation()
+                except MollyError as error:
+                    if error.phase in ("Policy", "Access") or combine(values)[0] is None:
+                        raise
+                    raise MollyError(error.phase, "Operation failed on restricted data; "
+                                     "details withheld", token) from None
 
             def evaluate(node, scope, pc):
                 kind, token = node.kind, node.token
@@ -1379,24 +1402,28 @@ class Engine:
                     return call(node, scope, pc)
                 values = [evaluate(child, scope, pc) for child in node.children]
                 data = [value.data for value in values]
-                if kind == "binary":
-                    result = binary_operation(token.kind, data[0], data[1], token)
-                elif kind == "unary":
-                    result = unary_operation(token.kind, data[0], token)
-                elif kind == "index":
-                    result = index_value(data[0], data[1], token)
-                elif kind == "field":
-                    result = field_value(data[0], token.text, token)
-                elif kind == "list":
-                    result = tuple(data)
-                elif kind == "set":
-                    result = build_set(data, token)
-                elif kind == "range":
-                    result = build_range(data[0], data[1], node.extra, token)
-                else:  # record
-                    result = MappingProxyType({name.text: item for name, item in zip(node.extra, data)})
+
+                def compute():
+                    if kind == "binary":
+                        result = binary_operation(token.kind, data[0], data[1], token)
+                    elif kind == "unary":
+                        result = unary_operation(token.kind, data[0], token)
+                    elif kind == "index":
+                        result = index_value(data[0], data[1], token)
+                    elif kind == "field":
+                        result = field_value(data[0], token.text, token)
+                    elif kind == "list":
+                        result = tuple(data)
+                    elif kind == "set":
+                        result = build_set(data, token)
+                    elif kind == "range":
+                        result = build_range(data[0], data[1], node.extra, token)
+                    else:  # record
+                        result = MappingProxyType({name.text: item
+                                                   for name, item in zip(node.extra, data)})
+                    return check_size(result, token)
                 # Any result depends on all of its inputs: their audiences intersect.
-                return Value(check_size(result, token), *combine(values))
+                return Value(shield(values + [pc], token, compute), *combine(values))
 
             def call(node, scope, pc):
                 name, token = node.token.text, node.token
@@ -1409,7 +1436,7 @@ class Engine:
                         raise MollyError("Adapter", "A source must declare a frozenset or None",
                                          token)
                     data = to_molly(source.load(context))
-                    self.event("READ", f"{name}: permission checked before querying")
+                    self.event("READ", f"{name}: permission checked before querying", pc)
                     return Value(data, label, (name,))
                 transform = self.transforms[name]
                 values = [evaluate(child, scope, pc) for child in node.children]
@@ -1417,7 +1444,7 @@ class Engine:
                 if transform.processor is not None:
                     self.require(Value(None, *combine(values + [pc])), transform.processor, token)
                 data = to_molly(transform.run(context, *(value.data for value in values)))
-                self.event("TRANSFORM", f"{name}: input restrictions preserved")
+                self.event("TRANSFORM", f"{name}: input restrictions preserved", pc)
                 return Value(data, label, origin + (name,))
 
             def execute(nodes, scope, pc):
@@ -1426,18 +1453,21 @@ class Engine:
                     if node.kind == "bind":
                         value = evaluate(node.children[0], scope, pc)
                         if node.extra:
-                            value = Value(coerce(node.extra, value.data, node.token),
-                                          value.audience, value.origin)
+                            raw = value
+                            data = shield([raw, pc], node.token,
+                                          lambda: coerce(node.extra, raw.data, node.token))
+                            value = Value(data, raw.audience, raw.origin)
                         scope.declare(node.token.text, value, node.extra)
-                        self.event("VARIABLE", f"{node.token.text}: {type_of(value.data)}; "
-                                   "origin and permissions preserved")
+                        self.event("VARIABLE", f"{node.token.text}: {shown_type(value)}; "
+                                   "origin and permissions preserved", pc)
                     elif node.kind == "assign":
                         value = evaluate(node.children[0], scope, pc)
                         slot = scope.find(node.token.text)
-                        data = coerce(slot.declared, value.data, node.token)
+                        data = shield([value, pc], node.token,
+                                      lambda: coerce(slot.declared, value.data, node.token))
                         # The assignment also depends on having reached this point (pc).
                         slot.value = Value(data, *combine([value, pc]))
-                        self.event("ASSIGN", f"{node.token.text}: {type_of(data)}")
+                        self.event("ASSIGN", f"{node.token.text}: {shown_type(slot.value)}", pc)
                     elif node.kind == "while":
                         while_loop(node, scope, pc)
                     elif node.kind == "for":
@@ -1449,11 +1479,14 @@ class Engine:
                         # pc: having reached this send is information too.
                         self.require(Value(None, *combine([value, pc])), identity, node.token)
                         text = to_text(value.data)
-                        if len(text) > MAX_TEXT:
-                            raise MollyError("Limit", f"Sent text longer than {MAX_TEXT} characters",
-                                             node.token)
-                        sink.send(context, text)
-                        self.event("SEND", f"{identity}: recipient allowed; adapter called")
+
+                        def fits():
+                            if len(text) > MAX_TEXT:
+                                raise MollyError("Limit", f"Sent text longer than {MAX_TEXT} "
+                                                 "characters", node.token)
+                        shield([value, pc], node.token, fits)
+                        # Deferred: an allowed send must not go out if a later step fails.
+                        outbox.append((sink, text, identity, pc))
                     else:
                         conditional(node, scope, pc)
 
@@ -1477,9 +1510,12 @@ class Engine:
 
             def condition(node, scope, pc, what):
                 test = evaluate(node.children[0], scope, pc)
-                if type_of(test.data) != "bool":
-                    raise _type_error(f"The {what} condition must be a bool; got "
-                                      f"{type_of(test.data)}", node.token)
+
+                def is_bool():
+                    if type_of(test.data) != "bool":
+                        raise _type_error(f"The {what} condition must be a bool; got "
+                                          f"{type_of(test.data)}", node.token)
+                shield([test, pc], node.token, is_bool)
                 return test
 
             def count_iteration(token):
@@ -1489,22 +1525,31 @@ class Engine:
                     raise MollyError("Limit", f"More than {MAX_ITERATIONS} loop iterations", token)
 
             def while_loop(node, scope, pc):
-                laps = 0
+                laps, restricted = 0, False
+                loop_pc = pc
                 while True:
-                    test = condition(node, scope, pc, "while")
-                    body_pc = guard(test, pc, node.branches, scope, "while")
+                    # Evaluating the condition again depends on the earlier tests,
+                    # so from the second lap on it runs under their label.
+                    test = condition(node, scope, loop_pc, "while")
+                    restricted = restricted or test.audience is not None
+                    body_pc = loop_pc = guard(test, loop_pc, node.branches, scope, "while")
                     if not test.data:
                         break
                     count_iteration(node.token)
                     laps += 1
                     execute(node.branches[0], scope, body_pc)
-                self.event("WHILE", f"line {node.token.line}: {laps} iterations")
+                self.event("WHILE", f"line {node.token.line}: " + (
+                    "loop over restricted data" if restricted else f"{laps} iterations"), pc)
 
             def for_loop(node, scope, pc):
                 collection = evaluate(node.children[0], scope, pc)
                 kind = type_of(collection.data)
-                if kind not in ("list", "set", "str"):
-                    raise _type_error(f"for iterates over a list, set or str; got {kind}", node.token)
+
+                def iterable():
+                    if kind not in ("list", "set", "str"):
+                        raise _type_error(f"for iterates over a list, set or str; got {kind}",
+                                          node.token)
+                shield([collection, pc], node.token, iterable)
                 # How many iterations run, and which items arrive, reveals the collection.
                 body_pc = guard(collection, pc, node.branches, scope, "for")
                 for item in collection.data:
@@ -1514,16 +1559,24 @@ class Engine:
                     body.declare(node.extra.text, Value(item, collection.audience, collection.origin),
                                  None)
                     execute(node.branches[0], body, body_pc)
-                self.event("FOR", f"line {node.token.line}: {len(collection.data)} iterations")
+                self.event("FOR", f"line {node.token.line}: " + (
+                    "loop over restricted data" if collection.audience is not None
+                    else f"{len(collection.data)} iterations"), pc)
 
             def conditional(node, scope, pc):
                 test = condition(node, scope, pc, "if")
                 branch_pc = guard(test, pc, node.branches, scope, "condition")
-                self.event("CONDITION", f"line {node.token.line}: "
-                           f"{'then' if test.data else 'else'} branch; effects of both branches checked")
+                branch = ("branch chosen on restricted data" if test.audience is not None
+                          else f"{'then' if test.data else 'else'} branch")
+                self.event("CONDITION", f"line {node.token.line}: {branch}; "
+                           "effects of both branches checked", pc)
                 execute(node.branches[0] if test.data else node.branches[1], scope, branch_pc)
 
             execute(program, None, PUBLIC)
+            # Commit: every check passed, so the queued sends go out, in order.
+            for sink, text, identity, pc in outbox:
+                sink.send(context, text)
+                self.event("SEND", f"{identity}: recipient allowed; adapter called", pc)
             return {"tokens": [vars(t) for t in tokens], "derivation": parser.derivation,
                     "trace": list(self.trace)}
         except MollyError as error:
