@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.8.0 (2026-11-19): resource limits and public release
+
+### Fixed
+
+- **A tiny program could run for minutes.** `x = [x, x]` in a loop builds a value whose written-out size doubles every lap, because both halves are the same object. Comparing or printing it visits every copy. Every new list, set and record is now limited to 10,000 elements in total (shared parts counted every time) and 32 levels of nesting.
+- **Rendering a large value used unbounded memory.** Turning a value into text for concatenation or sending now stops as soon as it passes the 4,000-character limit, instead of building the whole string first.
+- **The error cap only applied to the parser.** A program with 30 lexical errors reported 30. Every phase now stops at 25 errors plus a final "Analysis stopped" note.
+- `molly.__version__` now matches the package version.
+
+### Changed
+
+- The wheel installs only the `molly` module. `demo.py`, the examples and `molly_lab` stay in the repository; the `molly-demo` command was removed.
+
+### Added
+
+- 4 regression tests (73 in total).
+- Continuous integration on Python 3.10 to 3.13, `SECURITY.md` and `CONTRIBUTING.md`.
+
 ## 0.7.0 (2026-11-09): security audit
 
 Found by attacking the engine with plans written to leak a restricted value, and by a new noninterference fuzzer.

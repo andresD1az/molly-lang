@@ -1,6 +1,7 @@
 # Copyright 2026 Eyner Andres Diaz
 # SPDX-License-Identifier: Apache-2.0
 import re
+import time
 import unittest
 from molly import (Engine, Source, Transform, Sink, Context, MollyError, Parser, lex, lex_all,
                    REGULAR_EXPRESSIONS, KEYWORDS, TRANSITIONS, CLASSES, ACCEPTING, GRAMMAR,
@@ -545,6 +546,32 @@ class AuditTests(unittest.TestCase):
         text = " ".join(event["detail"] for event in result["trace"])
         self.assertIn("then branch", text)
         self.assertIn("3 iterations", text)
+
+    def test_shared_structure_cannot_blow_up(self):
+        # x = [x, x] doubles the written-out size each lap; comparing it took minutes.
+        code = "list x = [0]; for i in [1 .. 25] do x = [x, x]; end let r = x == x;"
+        start = time.perf_counter()
+        result = execute(code)
+        self.assertLess(time.perf_counter() - start, 2)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["errors"][0]["phase"], "Limit")
+
+    def test_value_depth_is_bounded(self):
+        result = execute("list x = [0]; for i in [1 .. 100] do x = [x]; end")
+        self.assertEqual(result["errors"][0]["phase"], "Limit")
+        self.assertIn("nested", result["errors"][0]["message"])
+
+    def test_error_cap_applies_to_every_phase(self):
+        result = execute("@ " * 30)
+        self.assertEqual(len(result["errors"]), 26)
+        self.assertEqual(result["errors"][-1]["phase"], "Limit")
+
+    def test_rendering_a_large_value_stops_at_the_text_limit(self):
+        big = "x" * 3000
+        result = execute(f'list a = ["{big}", "{big}"]; send public_web(a);')
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["errors"][0]["phase"], "Limit")
+        self.assertEqual(result["outbox"], [])
 
 
 if __name__ == "__main__":

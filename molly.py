@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Callable
 
-__version__ = "0.6.0"
+__version__ = "0.8.0"
 
 MAX_PROGRAM = 12000
 MAX_STATEMENTS = 100
@@ -30,6 +30,7 @@ MAX_FIELDS = 100
 MAX_ERRORS = 25
 MAX_ITERATIONS = 10000  # loop iterations, summed over the whole program
 MAX_INT = 2 ** 63 - 1  # same range as a Java long
+MAX_VALUE_NODES = 10000  # a value written out in full, shared parts counted every time
 
 
 class MollyError(Exception):
@@ -48,7 +49,17 @@ class MollyErrors(MollyError):
     """Every analysis error found, sorted by position."""
 
     def __init__(self, errors):
-        self.errors = sorted(errors, key=lambda error: (error.line, error.column))
+        stop = f"Analysis stopped after {MAX_ERRORS} errors"
+        found = [error for error in errors if error.message != stop]
+        found.sort(key=lambda error: (error.line, error.column))
+        if len(found) > MAX_ERRORS:
+            last = found[MAX_ERRORS - 1]
+            note = MollyError("Limit", stop)
+            note.line, note.column = last.line, last.column
+            found = found[:MAX_ERRORS] + [note]
+        elif len(found) < len(errors):
+            found.append(next(error for error in errors if error.message == stop))
+        self.errors = found
         first = self.errors[0]
         Exception.__init__(self, "\n".join(str(error) for error in self.errors))
         self.phase, self.message = first.phase, first.message
@@ -951,29 +962,71 @@ def _escape(text, delimiter):
     return delimiter + text.replace(delimiter, "\\" + delimiter) + delimiter
 
 
-def literal_repr(value):
-    """The value written as a Molly literal."""
-    kind = type_of(value)
-    if kind == "null":
-        return "null"
-    if kind == "bool":
-        return "true" if value else "false"
-    if kind in NUMERIC:
-        return repr(value)
-    if kind == "str":
-        return _escape(value, '"')
-    if kind == "char":
-        return _escape(value, "'")
-    if kind == "list":
-        return "[" + ", ".join(literal_repr(item) for item in value) + "]"
-    if kind == "set":
-        return "{" + ", ".join(literal_repr(item) for item in value) + "}"
-    return "record {" + ", ".join(f"{k}: {literal_repr(v)}" for k, v in value.items()) + "}"
+def literal_repr(value, limit=MAX_TEXT, token=None):
+    """The value written as a Molly literal. Stops as soon as it passes `limit` characters."""
+    parts, used = [], 0
+
+    def emit(text):
+        nonlocal used
+        used += len(text)
+        if used > limit:
+            raise MollyError("Limit", f"Text longer than {limit} characters", token)
+        parts.append(text)
+
+    def write(item):
+        kind = type_of(item)
+        if kind in ("list", "set", "record"):
+            emit({"list": "[", "set": "{", "record": "record {"}[kind])
+            pairs = item.items() if kind == "record" else ((None, x) for x in item)
+            for index, (name, element) in enumerate(pairs):
+                emit(", " if index else "")
+                if name is not None:
+                    emit(f"{name}: ")
+                write(element)
+            emit("}" if kind != "list" else "]")
+        elif kind == "null":
+            emit("null")
+        elif kind == "bool":
+            emit("true" if item else "false")
+        elif kind in NUMERIC:
+            emit(repr(item))
+        else:
+            emit(_escape(item, '"' if kind == "str" else "'"))
+
+    write(value)
+    return "".join(parts)
 
 
-def to_text(value):
+def to_text(value, limit=MAX_TEXT, token=None):
     """Text used for concatenation and sending: str and char go without quotes."""
-    return str(value) if type_of(value) in ("str", "char") else literal_repr(value)
+    if type_of(value) in ("str", "char"):
+        if len(value) > limit:
+            raise MollyError("Limit", f"Text longer than {limit} characters", token)
+        return str(value)
+    return literal_repr(value, limit, token)
+
+
+def value_shape(value):
+    """(nodes, depth) of a value written out in full. Shared parts count every time they
+    appear, because comparing or printing the value visits them every time."""
+    seen = {}
+
+    def walk(item):
+        kind = type_of(item)
+        if kind not in ("list", "set", "record"):
+            return 1, 0
+        key = id(item)
+        if key not in seen:
+            nodes, depth = 1, 0
+            for element in (item.values() if kind == "record" else item):
+                n, d = walk(element)
+                nodes, depth = nodes + n, max(depth, d)
+                if nodes > MAX_VALUE_NODES:
+                    break
+            seen[key] = (nodes, depth + 1)
+        return seen[key]
+
+    return walk(value)
 
 
 def check_size(value, token=None):
@@ -989,6 +1042,12 @@ def check_size(value, token=None):
         raise MollyError("Limit", f"More than {MAX_ELEMENTS} elements", token)
     if kind == "record" and len(value) > MAX_FIELDS:
         raise MollyError("Limit", f"More than {MAX_FIELDS} fields", token)
+    if kind in ("list", "set", "record"):
+        nodes, depth = value_shape(value)
+        if nodes > MAX_VALUE_NODES:
+            raise MollyError("Limit", f"Value larger than {MAX_VALUE_NODES} elements in total", token)
+        if depth > MAX_NESTING:
+            raise MollyError("Limit", f"Value nested deeper than {MAX_NESTING} levels", token)
     return value
 
 
@@ -1055,7 +1114,7 @@ def binary_operation(operator, a, b, token):
         raise _type_error(f"'in' needs a list, set or str on the right; got {tb}", token)
     if operator == "+":
         if ta in ("str", "char") or tb in ("str", "char"):
-            return to_text(a) + to_text(b)
+            return to_text(a, token=token) + to_text(b, token=token)
         if ta == "list" and tb == "list":
             return a + b
     if ta not in NUMERIC or tb not in NUMERIC:
@@ -1478,13 +1537,8 @@ class Engine:
                         identity = sink.identity(context)
                         # pc: having reached this send is information too.
                         self.require(Value(None, *combine([value, pc])), identity, node.token)
-                        text = to_text(value.data)
-
-                        def fits():
-                            if len(text) > MAX_TEXT:
-                                raise MollyError("Limit", f"Sent text longer than {MAX_TEXT} "
-                                                 "characters", node.token)
-                        shield([value, pc], node.token, fits)
+                        text = shield([value, pc], node.token,
+                                      lambda: to_text(value.data, token=node.token))
                         # Deferred: an allowed send must not go out if a later step fails.
                         outbox.append((sink, text, identity, pc))
                     else:

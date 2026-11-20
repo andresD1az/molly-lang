@@ -7,6 +7,11 @@
 
 # Molly
 
+[![tests](https://github.com/andresD1az/molly-lang/actions/workflows/tests.yml/badge.svg)](https://github.com/andresD1az/molly-lang/actions/workflows/tests.yml)
+[![license](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![status](https://img.shields.io/badge/status-alpha-orange.svg)
+
 **Let AI agents write the plan. Keep control of where the data goes.**
 
 **MOLLY — Model Orchestration Language with Labeled Yields.** A small, analyzable language for plans written by AI agents. Every value carries a label with its origin and the recipients allowed to see it, and the engine enforces it at every step.
@@ -28,13 +33,7 @@ Prompt injection makes this urgent. If a malicious message convinces the agent t
 
 ## Quick start
 
-**Interactive local lab:** open `molly_lab/iniciar.bat` on Windows, or run
-`python molly_lab/server.py --open`. The editor runs this interpreter and can
-also load a nearby `molly-vortex` checkout. See [lab instructions](molly_lab/README.md).
-The [Workbench guide](molly_lab/WORKBENCH.md) covers typed connectors, editor
-assistance, nested blocks, saved suites, a live debugger and the local HTTP pilot.
-
-Python 3.10+, no dependencies.
+Python 3.10+, no dependencies. Clone the repository and run:
 
 ```bash
 python demo.py --case allowed
@@ -54,6 +53,8 @@ python demo.py examples/errors.molly                        # every error, with 
 python demo.py examples/reply.molly --json                  # everything, including the trace
 python demo.py --formal grammar                             # BNF, FIRST/FOLLOW, LL(1) check
 ```
+
+**Interactive local lab (experimental):** run `python molly_lab/server.py --open` to try programs in a browser editor with tokens, trees, traces and a step debugger. Its documentation is in Spanish for now: [molly_lab/README.md](molly_lab/README.md).
 
 ## The language in one minute
 
@@ -129,7 +130,7 @@ result = engine.run(agent_program, ctx)
 
 This snippet shows the integration contract; the functions it mentions are not implemented here. The runnable example is [demo.py](demo.py). A source adapter must filter its query by the context *before* fetching data: loading everything and labeling it afterwards gives no such guarantee.
 
-Install locally with `pip install .`, or copy `molly.py` into your project.
+Install it with `pip install git+https://github.com/andresD1az/molly-lang`, or copy `molly.py` into your project: it is a single file with no dependencies.
 
 ## How it is built
 
@@ -139,7 +140,8 @@ Install locally with `pip install .`, or copy `molly.py` into your project.
 - **Interpreter:** labels propagate through every operation, and the implicit-flow checks above run on every control structure.
 - **Atomic sends:** allowed sends are queued and delivered only if the whole plan finishes, so a plan that fails halfway delivers nothing.
 - **Quiet errors and trace:** an error raised on restricted data withholds its details, and the trace does not record which branch ran, how many times a loop ran or the type of restricted values.
-- **Tests:** 69 unit tests, plus a noninterference fuzzer (`python tools/fuzz_noninterference.py 3000`) that runs random plans with two different secrets and checks that a public observer sees the same sends and trace.
+- **Bounded work:** every value is limited in total size and depth, so a short program cannot make a comparison or a print run for an unbounded time.
+- **Tests:** 73 unit tests, plus a noninterference fuzzer (`python tools/fuzz_noninterference.py 3000`) that runs random plans with two different secrets and checks that a public observer sees the same sends and trace.
 
 The formal definition (DFA, BNF, why the grammar is unambiguous) is in [docs/GRAMMAR.md](docs/GRAMMAR.md); the generated tables are in [docs/TABLES.md](docs/TABLES.md).
 
@@ -148,10 +150,10 @@ The formal definition (DFA, BNF, why the grammar is unambiguous) is in [docs/GRA
 - No user-defined functions, `break` or `continue` yet.
 - Labels are inherited conservatively. A summary does not become public automatically, and there is no declassification operation yet.
 - Adapters are trusted. A local function must not send data elsewhere on its own, and external processors must declare their identity.
-- **Abort channel.** Whether a plan finishes or fails, and at which step, can depend on restricted data. Sends are atomic (see below), so a recipient sees everything or nothing, and error messages never include restricted values, but that one outcome is still observable. This includes the stop at 10,000 loop iterations.
+- **Abort channel.** Whether a plan finishes or fails, and at which step, can depend on restricted data. Sends are atomic (see above), so a recipient sees everything or nothing, and error messages never include restricted values, but that one outcome is still observable. This includes the stop at 10,000 loop iterations.
 - A call to an external processor happens when it is evaluated, not at the end, and a sink adapter that fails during delivery does not undo earlier deliveries of the same plan.
 - Timing channels are out of scope.
-- Prototype limits: 12,000-character programs, 100 statements, 32 nesting levels, 64-bit integers, 4,000-character texts, 1,000-element collections. No process isolation, adapter timeouts, persistence or durable audit log.
+- Prototype limits: 12,000-character programs, 100 statements, 32 nesting levels, 64-bit integers, 4,000-character texts, 1,000-element collections, 10,000 elements in total per value, 25 reported errors. No process isolation, adapter timeouts, persistence or durable audit log.
 - Protection depends on the quality of your policies, authentication and adapters. Molly is not a guarantee of total security, general prompt-injection resistance or regulatory compliance.
 
 ## Related work
@@ -159,6 +161,10 @@ The formal definition (DFA, BNF, why the grammar is unambiguous) is in [docs/GRA
 Having an AI agent write a plan in a restricted language while an interpreter controls the data flow is also an active research direction. Examples include CaMeL (*Defeating Prompt Injections by Design*, Google DeepMind and ETH Zurich, 2025) and FIDES (information-flow control for agents, Microsoft, 2025). Molly does not use code from those projects; it shares the general approach, which builds on decades of information-flow-control research.
 
 Molly started as an academic project in a Formal Language Theory course. That version, with a Spanish vocabulary inspired by time travel, lives in a separate repository.
+
+## Security and contributing
+
+Found a way to leak a restricted value? Please report it privately as described in [SECURITY.md](SECURITY.md). For everything else, see [CONTRIBUTING.md](CONTRIBUTING.md) and the [changelog](CHANGELOG.md).
 
 ## License
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "molly-lang"
-version = "0.7.0"
+version = "0.8.0"
 description = "A small language for AI-agent plans where permissions follow the data"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -15,16 +15,23 @@ classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security",
     "Topic :: Software Development :: Interpreters",
 ]
 
 [project.urls]
-Homepage = "https://andresdiazd.com/"
-
-[project.scripts]
-molly-demo = "demo:main"
+Homepage = "https://github.com/andresD1az/molly-lang"
+Repository = "https://github.com/andresD1az/molly-lang"
+Issues = "https://github.com/andresD1az/molly-lang/issues"
+Changelog = "https://github.com/andresD1az/molly-lang/blob/main/CHANGELOG.md"
+Author = "https://andresdiazd.com/"
 
 [tool.setuptools]
-py-modules = ["molly", "demo"]
+# Only the engine is installed. demo.py, the examples and molly_lab stay in the repository.
+py-modules = ["molly"]
