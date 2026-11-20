@@ -54,8 +54,6 @@ python demo.py examples/reply.molly --json                  # everything, includ
 python demo.py --formal grammar                             # BNF, FIRST/FOLLOW, LL(1) check
 ```
 
-**Interactive local lab (experimental):** run `python molly_lab/server.py --open` to try programs in a browser editor with tokens, trees, traces and a step debugger. Its documentation is in Spanish for now: [molly_lab/README.md](molly_lab/README.md).
-
 ## The language in one minute
 
 ```text
@@ -130,7 +128,7 @@ result = engine.run(agent_program, ctx)
 
 This snippet shows the integration contract; the functions it mentions are not implemented here. The runnable example is [demo.py](demo.py). A source adapter must filter its query by the context *before* fetching data: loading everything and labeling it afterwards gives no such guarantee.
 
-Install it with `pip install git+https://github.com/andresD1az/molly-lang`, or copy `molly.py` into your project: it is a single file with no dependencies.
+Install it with `pip install molly-lang`, or copy `molly.py` into your project: it is a single file with no dependencies.
 
 ## How it is built
 
@@ -164,7 +162,7 @@ Molly started as an academic project in a Formal Language Theory course. That ve
 
 ## Security and contributing
 
-Found a way to leak a restricted value? Please report it privately as described in [SECURITY.md](SECURITY.md). For everything else, see [CONTRIBUTING.md](CONTRIBUTING.md) and the [changelog](CHANGELOG.md).
+Found a way to leak a restricted value? Please report it privately as described in [SECURITY.md](SECURITY.md). For everything else, see [CONTRIBUTING.md](CONTRIBUTING.md), the [code of conduct](CODE_OF_CONDUCT.md) and the [changelog](CHANGELOG.md).
 
 ## License
 

@@ -33,5 +33,5 @@ Changelog = "https://github.com/andresD1az/molly-lang/blob/main/CHANGELOG.md"
 Author = "https://andresdiazd.com/"
 
 [tool.setuptools]
-# Only the engine is installed. demo.py, the examples and molly_lab stay in the repository.
+# Only the engine is installed. demo.py and the examples stay in the repository.
 py-modules = ["molly"]

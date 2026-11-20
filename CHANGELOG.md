@@ -11,12 +11,13 @@
 
 ### Changed
 
-- The wheel installs only the `molly` module. `demo.py`, the examples and `molly_lab` stay in the repository; the `molly-demo` command was removed.
+- The wheel installs only the `molly` module. `demo.py` and the examples stay in the repository; the `molly-demo` command was removed.
+- The experimental Spanish lab (`molly_lab`) was removed from this repository; it belongs to the course version.
 
 ### Added
 
 - 4 regression tests (73 in total).
-- Continuous integration on Python 3.10 to 3.13, `SECURITY.md` and `CONTRIBUTING.md`.
+- Continuous integration on Python 3.10 to 3.13, release publishing to PyPI, `SECURITY.md`, `CONTRIBUTING.md`, a code of conduct and issue templates.
 
 ## 0.7.0 (2026-11-09): security audit
 

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "e1de1afdf2b24b3d9485e42261ea668c",
+    "name": "Pedido al cliente · prueba visual",
+    "builtin": false,
+    "request": {
+      "variant": "english",
+      "code": "let pedido = current_order();\nlet mensaje = draft(pedido);\nsend customer_whatsapp(mensaje);",
+      "mode": "simulated",
+      "tenant": "acme",
+      "subject": "ana",
+      "order_text": "Order DEMO-104 for Ana: silver ring, ships tomorrow.",
+      "fault": "none"
+    },
+    "expected": {
+      "ok": true,
+      "sends": 1
+    }
+  }
+]

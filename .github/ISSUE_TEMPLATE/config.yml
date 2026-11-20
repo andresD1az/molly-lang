@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/andresD1az/molly-lang/security/advisories/new
+    about: Leaks of restricted values are reported privately, not in public issues.
