@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Callable
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 MAX_PROGRAM = 12000
 MAX_STATEMENTS = 100

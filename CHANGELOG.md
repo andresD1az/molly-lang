@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0 (2026-11-20): command line, MCP server and playground
+
+### Added
+
+- **`molly` command:** `check`, `run` (dry run against a policy), `describe` and `init-policy`. Policies are JSON files written by the operator: context, sources with sample data and audience, transforms and sinks, with `{tenant}` and `{subject}` placeholders.
+- **`molly-mcp`:** a Model Context Protocol server over stdio, without dependencies, with the tools `molly_describe`, `molly_check` and `molly_run`. The policy is fixed at startup; the agent cannot change it and never sees delivered texts or source data.
+- **Playground:** a browser page that runs the real engine with Pyodide, published on GitHub Pages.
+- 12 tests for the command line, policies and MCP server (85 in total).
+
 ## 0.8.0 (2026-11-19): resource limits and public release
 
 ### Fixed

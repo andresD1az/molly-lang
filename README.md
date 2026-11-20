@@ -31,9 +31,22 @@ The promise: **you can change the plan without giving the agent the ability to c
 
 Prompt injection makes this urgent. If a malicious message convinces the agent to "also post the order to the website", the plan may contain that step, but the engine refuses to run it because the data's label does not allow that recipient.
 
+**[Try it in your browser](https://andresd1az.github.io/molly-lang/)**: no installation, nothing leaves the page.
+
 ## Quick start
 
-Python 3.10+, no dependencies. Clone the repository and run:
+Python 3.10+, no dependencies.
+
+```bash
+pip install molly-lang
+molly init-policy > policy.json          # sample policy: sources, transforms, sinks
+molly run plan.molly --policy policy.json # dry run: ALLOWED, BLOCKED or REJECTED
+molly check plan.molly --tokens --tree    # lexical and syntax analysis only
+```
+
+`molly run` never sends anything: it reports what would be delivered and to whom. Exit codes: `0` allowed, `1` analysis errors, `2` blocked, `3` bad input or policy.
+
+To explore the repository instead, clone it and run:
 
 ```bash
 python demo.py --case allowed
@@ -43,7 +56,7 @@ python demo.py examples/complete.molly
 python -m unittest -v
 ```
 
-Exit codes: `0` allowed, `1` analysis errors (all of them are listed with line and column), `2` blocked by a permission. The demo adapters use synthetic data: **no real messages are sent, no database is queried and no LLM is called.** The lexer, parser and permission decisions are real code, not hardcoded results.
+Same exit codes as above; all analysis errors are listed with line and column. The demo adapters use synthetic data: **no real messages are sent, no database is queried and no LLM is called.** The lexer, parser and permission decisions are real code, not hardcoded results.
 
 Other useful flags:
 
@@ -128,7 +141,31 @@ result = engine.run(agent_program, ctx)
 
 This snippet shows the integration contract; the functions it mentions are not implemented here. The runnable example is [demo.py](demo.py). A source adapter must filter its query by the context *before* fetching data: loading everything and labeling it afterwards gives no such guarantee.
 
-Install it with `pip install molly-lang`, or copy `molly.py` into your project: it is a single file with no dependencies.
+Install it with `pip install molly-lang`, or copy `molly.py` into your project: the engine is a single file with no dependencies.
+
+## Using it from an AI agent (MCP)
+
+`molly-mcp` is a [Model Context Protocol](https://modelcontextprotocol.io/) server over stdio, with no dependencies. The agent writes a plan and asks the server to check it; the server answers with the policy chosen by the operator at startup.
+
+| Tool | What it does |
+|---|---|
+| `molly_describe` | Sources, transforms and sinks the plan may use, plus the syntax |
+| `molly_check` | Lexical and syntax errors with line and column |
+| `molly_run` | Dry run: `allowed`, `blocked` or `rejected`, the recipients that would receive a message and a redacted trace |
+
+The agent cannot pass or change the policy, and it never sees the delivered texts or source data. Add it to Claude Code:
+
+```bash
+claude mcp add molly -- molly-mcp --policy /path/to/policy.json
+```
+
+or to any MCP client configuration (Claude Desktop, Cursor and others):
+
+```json
+{ "mcpServers": { "molly": { "command": "molly-mcp", "args": ["--policy", "/path/to/policy.json"] } } }
+```
+
+Without `--policy` it uses the built-in demo policy.
 
 ## How it is built
 
@@ -139,7 +176,7 @@ Install it with `pip install molly-lang`, or copy `molly.py` into your project: 
 - **Atomic sends:** allowed sends are queued and delivered only if the whole plan finishes, so a plan that fails halfway delivers nothing.
 - **Quiet errors and trace:** an error raised on restricted data withholds its details, and the trace does not record which branch ran, how many times a loop ran or the type of restricted values.
 - **Bounded work:** every value is limited in total size and depth, so a short program cannot make a comparison or a print run for an unbounded time.
-- **Tests:** 73 unit tests, plus a noninterference fuzzer (`python tools/fuzz_noninterference.py 3000`) that runs random plans with two different secrets and checks that a public observer sees the same sends and trace.
+- **Tests:** 85 unit tests, plus a noninterference fuzzer (`python tools/fuzz_noninterference.py 3000`) that runs random plans with two different secrets and checks that a public observer sees the same sends and trace.
 
 The formal definition (DFA, BNF, why the grammar is unambiguous) is in [docs/GRAMMAR.md](docs/GRAMMAR.md); the generated tables are in [docs/TABLES.md](docs/TABLES.md).
 

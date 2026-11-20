@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "molly-lang"
-version = "0.8.0"
+version = "0.9.0"
 description = "A small language for AI-agent plans where permissions follow the data"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Eyner Andres Diaz" }]
-keywords = ["dsl", "language", "ai-agents", "security", "information-flow-control", "prompt-injection", "parser"]
+keywords = ["dsl", "language", "ai-agents", "security", "information-flow-control", "prompt-injection", "parser", "mcp"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -27,11 +27,16 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/andresD1az/molly-lang"
+Playground = "https://andresd1az.github.io/molly-lang/"
 Repository = "https://github.com/andresD1az/molly-lang"
 Issues = "https://github.com/andresD1az/molly-lang/issues"
 Changelog = "https://github.com/andresD1az/molly-lang/blob/main/CHANGELOG.md"
 Author = "https://andresdiazd.com/"
 
+[project.scripts]
+molly = "molly_cli:main"
+molly-mcp = "molly_mcp:main"
+
 [tool.setuptools]
-# Only the engine is installed. demo.py and the examples stay in the repository.
-py-modules = ["molly"]
+# The engine, the command line and the MCP server. demo.py and the examples stay in the repository.
+py-modules = ["molly", "molly_cli", "molly_mcp"]

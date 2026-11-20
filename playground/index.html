@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Molly Playground</title>
+<meta name="description" content="Write a Molly plan and see what the engine allows, blocks or rejects. Runs entirely in your browser.">
+<link rel="icon" href="favicon.ico">
+<style>
+:root {
+  --bg: #f7f7fb; --panel: #ffffff; --ink: #1d1d2b; --muted: #5d5d73; --line: #dcdce8;
+  --brand: #454685; --accent: #197e73; --code: #f1f1f7;
+  --ok: #1b7f4a; --ok-bg: #e5f5ec; --bad: #b42318; --bad-bg: #fdecea; --warn: #8a5a00; --warn-bg: #fff4dc;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12121a; --panel: #1b1b26; --ink: #ececf4; --muted: #a3a3b8; --line: #2f2f40;
+    --brand: #a9aaf0; --accent: #4fc2b3; --code: #23232f;
+    --ok: #6fd69c; --ok-bg: #173826; --bad: #ff8a80; --bad-bg: #3d1a17; --warn: #ffcc66; --warn-bg: #3a2e12;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+header { display: flex; align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--line);
+  background: var(--panel); flex-wrap: wrap; }
+header img { height: 34px; }
+header .tag { color: var(--muted); font-size: 14px; flex: 1; min-width: 200px; }
+header a { color: var(--brand); text-decoration: none; font-size: 14px; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px;
+  max-width: 1400px; margin: 0 auto; }
+@media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 16px; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; display: flex;
+  flex-direction: column; min-height: 0; }
+.bar { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line);
+  flex-wrap: wrap; }
+select, button { font: inherit; border-radius: 7px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink); padding: 6px 10px; }
+button.run { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 600; padding: 6px 16px; }
+:root:not([data-theme="light"]) button.run { color: #fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.run { color: #12121a; } }
+button:disabled { opacity: .55; cursor: wait; }
+.hint { color: var(--muted); font-size: 13px; margin-left: auto; }
+textarea { flex: 1; min-height: 360px; width: 100%; border: 0; resize: vertical; padding: 14px; background: var(--code);
+  color: var(--ink); font: 14px/1.6 ui-monospace, "Cascadia Code", Consolas, monospace; tab-size: 2;
+  border-radius: 0 0 10px 10px; outline: none; }
+.tabs { display: flex; gap: 2px; padding: 0 8px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted);
+  padding: 10px 12px; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+.view { padding: 14px; overflow: auto; flex: 1; min-height: 360px; }
+.view[hidden] { display: none; }
+.status { display: inline-block; font-weight: 700; letter-spacing: .04em; padding: 4px 12px; border-radius: 999px; }
+.s-allowed { color: var(--ok); background: var(--ok-bg); }
+.s-blocked { color: var(--bad); background: var(--bad-bg); }
+.s-rejected, .s-policy { color: var(--warn); background: var(--warn-bg); }
+.s-idle { color: var(--muted); background: var(--code); }
+.explain { color: var(--muted); margin: 10px 0 16px; }
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+ul.list { list-style: none; padding: 0; margin: 0; }
+ul.list li { padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; margin-bottom: 6px; }
+.err { cursor: pointer; }
+.err:hover { border-color: var(--accent); }
+.pos { font-family: ui-monospace, Consolas, monospace; color: var(--accent); margin-right: 6px; }
+.rcpt { font-family: ui-monospace, Consolas, monospace; font-weight: 600; }
+.msg { color: var(--muted); margin-top: 2px; word-break: break-word; }
+pre { margin: 0; font: 13px/1.5 ui-monospace, Consolas, monospace; white-space: pre; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--panel); }
+td code { font-family: ui-monospace, Consolas, monospace; }
+#policy { min-height: 340px; border-radius: 7px; border: 1px solid var(--line); }
+.policy-note { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+footer { text-align: center; color: var(--muted); font-size: 13px; padding: 8px 16px 24px; }
+footer a { color: var(--brand); }
+</style>
+</head>
+<body>
+<header>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo-dark.svg">
+    <img src="logo.svg" alt="Molly Lang">
+  </picture>
+  <span class="tag">Playground: let AI agents write the plan, keep control of where the data goes.</span>
+  <a href="https://github.com/andresD1az/molly-lang">GitHub</a>
+  <a href="https://github.com/andresD1az/molly-lang/blob/main/docs/SYNTAX.md">Syntax</a>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="bar">
+      <select id="example" aria-label="Example"></select>
+      <button class="run" id="run" disabled>Loading…</button>
+      <span class="hint">Ctrl + Enter to run</span>
+    </div>
+    <textarea id="code" spellcheck="false" wrap="off" aria-label="Molly program"></textarea>
+  </section>
+
+  <section class="panel">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-view="result" aria-selected="true">Result</button>
+      <button role="tab" data-view="trace" aria-selected="false">Trace</button>
+      <button role="tab" data-view="tokens" aria-selected="false">Tokens (DFA)</button>
+      <button role="tab" data-view="tree" aria-selected="false">Derivation tree</button>
+      <button role="tab" data-view="policy-view" aria-selected="false">Policy</button>
+    </div>
+    <div class="view" id="result">
+      <span class="status s-idle" id="status">LOADING ENGINE</span>
+      <p class="explain" id="explain">Downloading Python for the browser (first visit only, a few seconds).</p>
+      <div id="details"></div>
+    </div>
+    <div class="view" id="trace" hidden></div>
+    <div class="view" id="tokens" hidden></div>
+    <div class="view" id="tree" hidden><pre id="tree-text"></pre></div>
+    <div class="view" id="policy-view" hidden>
+      <p class="policy-note">The policy is written by the application, never by the agent: context, sources with
+        their allowed audience (<code>null</code> = public), transforms and sinks. Edit it and run again.</p>
+      <textarea id="policy" spellcheck="false" wrap="off" aria-label="Policy JSON"></textarea>
+    </div>
+  </section>
+</main>
+<footer>Runs entirely in your browser with <a href="https://pyodide.org/">Pyodide</a>. Synthetic data; nothing is sent anywhere.
+  Molly is Apache-2.0 · <a href="https://andresdiazd.com/">Eyner Andres Diaz</a></footer>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script>
+const EXAMPLES = {
+  "Allowed: reply to the customer":
+    'let order = current_order();       # private: only this customer\nlet message = draft(order);        # the label follows the data\nsend customer_whatsapp(message);   # allowed',
+  "Blocked: publish a private order":
+    'let order = current_order();\nlet message = draft(order);\nsend public_web(message);          # blocked before the adapter runs',
+  "Blocked: concatenation keeps the label":
+    'let order = current_order();\nlet copy = "Notice: " + order;\nsend public_web(copy);',
+  "Blocked: unauthorized external model":
+    'let order = current_order();\nlet summary = external_model(order);\nsend customer_whatsapp(summary);',
+  "Blocked: another customer\'s data":
+    'let order = other_order();\nsend customer_whatsapp(order);',
+  "Blocked: implicit flow through a branch":
+    'if order_status() == "cancelled" then\n  send public_web("There was a cancellation");\nend',
+  "Allowed: public data stays usable":
+    'let catalog = public_catalog();\nsend public_web(draft(catalog));',
+  "Allowed: types, records and sets":
+    'record order = order_details();\nfloat tax = 0.19;\nfloat total = order.total * (1 + tax);\nint items = order.quantities[0] + order.quantities[1];\n\nif total > 100000 and order.status in {"shipped", "delivered"} then\n  send customer_whatsapp("Order " + order.id + ": " + items + " items, total $" + total);\nelse\n  send customer_whatsapp("Your order is being prepared.");\nend',
+  "Allowed: loops":
+    'int count = 0;\nfor n in [1 .. 10] do\n  count = count + n;\nend\nsend public_web("Sum: " + count);',
+  "Rejected: errors with line and column":
+    'let x = 5\nlet y = "unclosed;\nsend nowhere(x);\nif x !! 3 then\nend',
+};
+const EXPLAIN = {
+  allowed: "Every send reaches a recipient allowed by the data's label. In a real deployment the adapters would now run.",
+  blocked: "A value would reach a recipient its label does not allow. The plan is stopped and nothing is delivered.",
+  rejected: "The program has lexical, syntax or name errors. Nothing runs until they are fixed.",
+  policy: "The policy JSON is not valid.",
+};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+let pyodide, play;
+
+for (const name of Object.keys(EXAMPLES)) $("example").add(new Option(name, name));
+$("code").value = EXAMPLES[Object.keys(EXAMPLES)[0]];
+$("example").onchange = () => { $("code").value = EXAMPLES[$("example").value]; runPlan(); };
+
+document.querySelectorAll(".tabs button").forEach((tab) => tab.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach((t) => t.setAttribute("aria-selected", t === tab));
+  document.querySelectorAll(".view").forEach((v) => v.hidden = v.id !== tab.dataset.view);
+});
+
+function goTo(line, column) {
+  const lines = $("code").value.split("\n");
+  let pos = 0;
+  for (let i = 0; i < line - 1 && i < lines.length; i++) pos += lines[i].length + 1;
+  pos += Math.max(0, column - 1);
+  $("code").focus();
+  $("code").setSelectionRange(pos, pos + 1);
+}
+
+function render(r) {
+  $("status").className = "status s-" + r.status;
+  $("status").textContent = r.status === "policy" ? "POLICY ERROR" : r.status.toUpperCase();
+  $("explain").textContent = EXPLAIN[r.status] || "";
+  let html = "";
+  if (r.errors && r.errors.length) {
+    html += "<h3>" + (r.status === "blocked" ? "Why it was blocked" : "Errors") + "</h3><ul class='list'>";
+    for (const e of r.errors)
+      html += `<li class="err" data-l="${e.line || 1}" data-c="${e.column || 1}"><span class="pos">${e.line ?? "-"}:${e.column ?? "-"}</span><strong>${esc(e.phase)}</strong><div class="msg">${esc(e.message)}</div></li>`;
+    html += "</ul>";
+  }
+  if (r.deliveries && r.deliveries.length) {
+    html += "<h3>Would be delivered</h3><ul class='list'>";
+    for (const d of r.deliveries)
+      html += `<li><span class="rcpt">${esc(d.recipient)}</span> via <code>${esc(d.sink)}</code><div class="msg">${esc(d.text)}</div></li>`;
+    html += "</ul>";
+  }
+  $("details").innerHTML = html;
+  document.querySelectorAll(".err").forEach((li) => li.onclick = () => goTo(+li.dataset.l, +li.dataset.c));
+
+  const trace = r.trace || [];
+  $("trace").innerHTML = trace.length
+    ? "<table><tr><th>Step</th><th>Detail</th></tr>" + trace.map((t) => `<tr><td><code>${esc(t.operation)}</code></td><td>${esc(t.detail)}</td></tr>`).join("") + "</table>"
+    : "<p class='explain'>No trace for this run.</p>";
+  const tokens = r.tokens || [];
+  $("tokens").innerHTML = tokens.length
+    ? "<table><tr><th>Line:Col</th><th>Kind</th><th>Text</th></tr>" + tokens.map((t) => `<tr><td><code>${t.line}:${t.column}</code></td><td><code>${esc(t.kind)}</code></td><td><code>${esc(t.text)}</code></td></tr>`).join("") + "</table>"
+    : "<p class='explain'>No tokens: the lexer found errors.</p>";
+  $("tree-text").textContent = r.tree || "No tree: the parser found errors.";
+}
+
+function runPlan() {
+  if (!play) return;
+  try { render(JSON.parse(play($("code").value, $("policy").value))); }
+  catch (e) { render({status: "policy", errors: [{phase: "Playground", message: String(e.message || e)}]}); }
+}
+$("run").onclick = runPlan;
+document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); runPlan(); } });
+$("code").addEventListener("keydown", (e) => {
+  if (e.key === "Tab") { e.preventDefault(); const t = e.target, s = t.selectionStart;
+    t.setRangeText("  ", s, t.selectionEnd, "end"); }
+});
+
+(async () => {
+  try {
+    pyodide = await loadPyodide();
+    for (const file of ["molly.py", "molly_cli.py"]) {
+      const res = await fetch(file);
+      if (!res.ok) throw new Error("Could not load " + file);
+      pyodide.FS.writeFile(file, await res.text());
+    }
+    play = pyodide.runPython(`
+import json, sys
+sys.path.insert(0, ".")
+import molly, molly_cli
+
+def play(code, policy_json):
+    try:
+        policy = json.loads(policy_json)
+        molly_cli.build(policy)
+    except (ValueError, molly_cli.PolicyError) as error:
+        return json.dumps({"status": "policy", "errors": [{"phase": "Policy file", "message": str(error)}]})
+    result = molly_cli.run(code, policy)
+    syntax = molly_cli.check(code)
+    result["tokens"] = syntax.get("tokens")
+    result["tree"] = molly.format_tree(syntax["derivation"]) if syntax.get("derivation") else ""
+    result.pop("derivation", None)
+    return json.dumps(result, ensure_ascii=False, default=str)
+
+play
+`);
+    $("policy").value = pyodide.runPython("import json, molly_cli; json.dumps(molly_cli.DEFAULT_POLICY, indent=2, ensure_ascii=False)");
+    $("run").disabled = false;
+    $("run").textContent = "Run";
+    runPlan();
+  } catch (e) {
+    $("status").textContent = "COULD NOT LOAD";
+    $("explain").textContent = "The engine could not be loaded: " + (e.message || e);
+  }
+})();
+</script>
+</body>
+</html>

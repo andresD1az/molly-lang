@@ -1,0 +1,39 @@
+name: playground
+
+# Publishes playground/ with the engine to GitHub Pages.
+on:
+  push:
+    branches: [main]
+    paths: ["playground/**", "molly.py", "molly_cli.py", "docs/brand/**", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site
+        run: |
+          mkdir site
+          cp playground/index.html molly.py molly_cli.py site/
+          cp docs/brand/molly-lang-logo.svg site/logo.svg
+          cp docs/brand/molly-lang-logo-dark.svg site/logo-dark.svg
+          cp docs/brand/favicon.ico site/favicon.ico
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
